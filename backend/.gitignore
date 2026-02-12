@@ -1,0 +1,14 @@
+# Dependencies
+backend/node_modules/
+frontend/node_modules/
+
+# Temp PDFs (no se guardan)
+backend/temp/
+
+# Logs
+*.log
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
