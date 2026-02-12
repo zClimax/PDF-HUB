@@ -1,1 +1,16 @@
 @import "tailwindcss";
+
+/* Base global (simple y neutro) */
+:root {
+  color-scheme: light;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #f8fafc; /* slate-50 */
+  color: #0f172a;      /* slate-900 */
+}
