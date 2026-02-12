@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { API_BASE } from "../services/api";
+import FilePicker from "../components/FilePicker";
 
 export default function MergeView({ onBack }) {
   const [files, setFiles] = useState([]);

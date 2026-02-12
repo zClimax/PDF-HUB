@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { pdfjsLib } from "../lib/pdfjs";
 import { API_BASE } from "../services/api";
+import FilePicker from "../components/FilePicker";
 
 export default function DeletePagesView({ onBack }) {
   const [file, setFile] = useState(null);
@@ -98,17 +99,19 @@ export default function DeletePagesView({ onBack }) {
       <div className="bg-white p-8 rounded-2xl shadow-md max-w-3xl">
         <h2 className="text-2xl font-semibold mb-6">Eliminar páginas de PDF</h2>
 
-        <input
-          type="file"
-          accept=".pdf"
-          className="mb-4"
-          onChange={(e) => {
-            const selected = e.target.files?.[0];
-            if (!selected) return;
-            setFile(selected);
-            generateThumbnails(selected);
-          }}
-        />
+<FilePicker
+  id="extract-file"
+  label="Seleccionar archivo"
+  accept=".pdf"
+  onChange={(e) => {
+    const selected = e.target.files?.[0];
+    if (!selected) return;
+    setFile(selected);
+    generateThumbnails(selected);
+  }}
+  helper={file ? file.name : "Sin archivos seleccionados"}
+/>
+
 
         {!!pageCount && (
           <div className="grid grid-cols-4 gap-4 my-4">

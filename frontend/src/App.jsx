@@ -1,55 +1,104 @@
 import { useState } from "react";
-import "./lib/pdfjs"; // inicializa el worker una vez
+import "./lib/pdfjs";
 
+import AppShell from "./components/AppShell";
 import ToolCard from "./components/ToolCard";
+
 import MergeView from "./views/MergeView";
 import DeletePagesView from "./views/DeletePagesView";
 import ReorderPagesView from "./views/ReorderPagesView";
 import ExtractPagesView from "./views/ExtractPagesView";
 
+const TOOLS = [
+  {
+    key: "merge",
+    title: "Unir PDFs",
+    description: "Combina varios archivos PDF en uno solo",
+    enabled: true,
+  },
+  {
+    key: "delete",
+    title: "Eliminar páginas",
+    description: "Quita páginas específicas de un PDF",
+    enabled: true,
+  },
+  {
+    key: "reorder",
+    title: "Reordenar páginas",
+    description: "Cambia el orden de páginas de un PDF",
+    enabled: true,
+  },
+  {
+    key: "extract",
+    title: "Extraer páginas",
+    description: "Crea un PDF nuevo con páginas seleccionadas",
+    enabled: true,
+  },
+  {
+    key: "pdf2word",
+    title: "PDF a Word",
+    description: "Próximamente",
+    enabled: false,
+  },
+  {
+    key: "word2pdf",
+    title: "Word a PDF",
+    description: "Próximamente",
+    enabled: false,
+  },
+];
+
 export default function App() {
   const [view, setView] = useState("home");
+  const goHome = () => setView("home");
 
-  if (view === "merge") return <MergeView onBack={() => setView("home")} />;
-  if (view === "delete") return <DeletePagesView onBack={() => setView("home")} />;
-  if (view === "reorder") return <ReorderPagesView onBack={() => setView("home")} />;
-  if (view === "extract") return <ExtractPagesView onBack={() => setView("home")} />;
+  switch (view) {
+    case "merge":
+      return <MergeView onBack={goHome} />;
+    case "delete":
+      return <DeletePagesView onBack={goHome} />;
+    case "reorder":
+      return <ReorderPagesView onBack={goHome} />;
+    case "extract":
+      return <ExtractPagesView onBack={goHome} />;
+    default:
+      break;
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 p-10">
-      <h1 className="text-4xl font-bold mb-8">Herramientas PDF Internas</h1>
+    <AppShell
+      title="PDF HUB"
+      subtitle="Herramientas locales para unir y editar PDFs"
+      actions={
+        <span className="hidden sm:inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600">
+          Local
+        </span>
+      }
+    >
+      <section className="mb-6">
+        <h2 className="text-base font-semibold text-slate-900">Herramientas</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Selecciona una opción. Los archivos se procesan y se descargan al momento.
+        </p>
+      </section>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <ToolCard
-          title="Unir PDFs"
-          description="Combina varios archivos PDF en uno solo"
-          onClick={() => setView("merge")}
-        />
-        <ToolCard
-          title="PDF a Word"
-          description="Próximamente"
-          onClick={() => {}}
-        />
-        <ToolCard
-          title="Word a PDF"
-          description="Próximamente"
-          onClick={() => {}}
-        />
-        <ToolCard
-          title="Eliminar páginas"
-          description="Borra páginas específicas de un PDF"
-          onClick={() => setView("delete")}
-        />
-        <ToolCard
-         title="Reordenar páginas"
-         description="Cambia el orden de páginas de un PDF"
-        onClick={() => setView("reorder")}
-        />
-        <ToolCard
-        title="Extraer páginas"
-        description="Crea un nuevo PDF con las páginas seleccionadas"
-        onClick={() => setView("extract")}
-        />
-      </div>
-    </div>
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {TOOLS.map((t) => (
+          <ToolCard
+            key={t.key}
+            title={t.title}
+            description={t.description}
+            disabled={!t.enabled}
+            onClick={() => (t.enabled ? setView(t.key) : undefined)}
+          />
+        ))}
+      </section>
+
+      <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p className="text-sm text-slate-600">
+          Tip: si extraes páginas y luego quieres cambiar su orden, usa “Reordenar páginas”.
+        </p>
+      </section>
+    </AppShell>
   );
 }
