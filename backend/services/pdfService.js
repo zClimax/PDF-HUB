@@ -137,7 +137,63 @@ async function reorderPages(fileName, pageOrder) {
   return outputName;
 }
 
+async function stampSignature(pdfFileName, imageFileName, options) {
+  const pdfPath = path.join("temp", pdfFileName);
+  const imgPath = path.join("temp", imageFileName);
 
-module.exports = { mergePDFs, deletePages, reorderPages, extractPages };
+  const pdfBytes = await fs.readFile(pdfPath);
+  const imgBytes = await fs.readFile(imgPath);
+
+  const pdfDoc = await PDFDocument.load(pdfBytes);
+
+  const pageIndex = Number(options.pageIndex ?? 0); // 0-based
+  const xNorm = Number(options.xNorm ?? 0.8); // 0..1
+  const yNorm = Number(options.yNorm ?? 0.2); // 0..1 (origen abajo-izq)
+  const widthNorm = Number(options.widthNorm ?? 0.25); // % del ancho de la página
+  const opacity = Number(options.opacity ?? 1);
+
+  if (!Number.isInteger(pageIndex) || pageIndex < 0 || pageIndex >= pdfDoc.getPageCount()) {
+    throw new Error("pageIndex inválido");
+  }
+  if (!(xNorm >= 0 && xNorm <= 1 && yNorm >= 0 && yNorm <= 1)) {
+    throw new Error("xNorm/yNorm deben estar entre 0 y 1");
+  }
+  if (!(widthNorm > 0 && widthNorm <= 1)) {
+    throw new Error("widthNorm debe estar entre (0, 1]");
+  }
+
+  const ext = path.extname(imageFileName).toLowerCase();
+  const img =
+    ext === ".png"
+      ? await pdfDoc.embedPng(imgBytes)
+      : await pdfDoc.embedJpg(imgBytes);
+
+  const page = pdfDoc.getPage(pageIndex);
+  const { width: pageW, height: pageH } = page.getSize();
+
+  const stampW = pageW * widthNorm;
+  const scale = stampW / img.width;
+  const stampH = img.height * scale;
+
+  // Click representa el CENTRO del sello
+  let x = xNorm * pageW - stampW / 2;
+  let y = yNorm * pageH - stampH / 2;
+
+  // Clamp para que no se salga de la página
+  x = Math.max(0, Math.min(x, pageW - stampW));
+  y = Math.max(0, Math.min(y, pageH - stampH));
+
+  page.drawImage(img, { x, y, width: stampW, height: stampH, opacity });
+
+  const outputName = uuidv4() + ".pdf";
+  const outputPath = path.join("temp", outputName);
+
+  const outBytes = await pdfDoc.save();
+  await fs.writeFile(outputPath, outBytes);
+
+  return outputName;
+}
 
 
+
+module.exports = { mergePDFs, deletePages, reorderPages, extractPages, stampSignature };

@@ -8,6 +8,8 @@ import MergeView from "./views/MergeView";
 import DeletePagesView from "./views/DeletePagesView";
 import ReorderPagesView from "./views/ReorderPagesView";
 import ExtractPagesView from "./views/ExtractPagesView";
+import StampSignatureView from "./views/StampSignatureView";
+
 
 const TOOLS = [
   {
@@ -46,6 +48,13 @@ const TOOLS = [
     description: "Próximamente",
     enabled: false,
   },
+  {
+  key: "stamp",
+  title: "Firma visible",
+  description: "Coloca un sello/firma en cualquier posición",
+  enabled: true,
+},
+
 ];
 
 export default function App() {
@@ -61,8 +70,11 @@ export default function App() {
       return <ReorderPagesView onBack={goHome} />;
     case "extract":
       return <ExtractPagesView onBack={goHome} />;
+    case "stamp":
+      return <StampSignatureView onBack={goHome} />;
     default:
       break;
+      
   }
 
   return (

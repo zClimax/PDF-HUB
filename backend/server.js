@@ -6,8 +6,8 @@ const path = require("path");
 const fs = require("fs-extra");
 const { PDFDocument } = require("pdf-lib");
 
-const { mergePDFs, deletePages, reorderPages, extractPages } = require("./services/pdfService");
-
+const { mergePDFs, deletePages, reorderPages, extractPages, stampSignature } =
+  require("./services/pdfService");
 
 const app = express();
 app.use(cors());
@@ -22,6 +22,17 @@ function isPdfFile(file) {
   return ext === ".pdf" || mime === "application/pdf";
 }
 
+function isImageFile(file) {
+  const ext = path.extname(file.originalname || "").toLowerCase();
+  const mime = (file.mimetype || "").toLowerCase();
+  return (
+    ext === ".png" || ext === ".jpg" || ext === ".jpeg" ||
+    mime === "image/png" || mime === "image/jpeg"
+  );
+}
+
+
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, TEMP_DIR),
   filename: (req, file, cb) => {
@@ -33,10 +44,10 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: { fileSize: 25 * 1024 * 1024, files: 20 }, // ajusta a tu gusto
-  fileFilter: (req, file, cb) => {
-    if (!isPdfFile(file)) return cb(new Error("Solo se permiten archivos PDF"));
-    cb(null, true);
-  },
+ fileFilter: (req, file, cb) => {
+  if (isPdfFile(file) || isImageFile(file)) return cb(null, true);
+  cb(new Error("Solo se permiten archivos PDF o imágenes (PNG/JPG)"));
+},
 });
 
 function cleanupAfterResponse(res, absolutePaths) {
@@ -178,6 +189,57 @@ app.post("/extract-pages", upload.single("file"), async (req, res) => {
     res.status(500).send("Error al extraer páginas");
   }
 });
+
+// METODO FIRMA VISIBLE (SELLO) - posicion libre por click
+app.post(
+  "/stamp-signature",
+  upload.fields([
+    { name: "pdf", maxCount: 1 },
+    { name: "signature", maxCount: 1 },
+  ]),
+  async (req, res) => {
+    const pdfFile = req.files?.pdf?.[0];
+    const sigFile = req.files?.signature?.[0];
+
+    if (!pdfFile || !sigFile) {
+      if (pdfFile) await fs.remove(path.join(TEMP_DIR, pdfFile.filename)).catch(() => {});
+      if (sigFile) await fs.remove(path.join(TEMP_DIR, sigFile.filename)).catch(() => {});
+      return res.status(400).send("Debes enviar 'pdf' y 'signature'");
+    }
+
+    let options = {};
+    try {
+      options = JSON.parse(req.body.options || "{}");
+    } catch {}
+
+    let outName = null;
+    try {
+      outName = await stampSignature(pdfFile.filename, sigFile.filename, options);
+
+      cleanupAfterResponse(res, [
+        path.join(TEMP_DIR, pdfFile.filename),
+        path.join(TEMP_DIR, sigFile.filename),
+        path.join(TEMP_DIR, outName),
+      ]);
+
+      res.setHeader("Cache-Control", "no-store");
+      return res.download(path.join(TEMP_DIR, outName), "pdf_firmado.pdf");
+    } catch (err) {
+      console.error(err);
+      await Promise.all(
+        [
+          path.join(TEMP_DIR, pdfFile.filename),
+          path.join(TEMP_DIR, sigFile.filename),
+          outName ? path.join(TEMP_DIR, outName) : null,
+        ]
+          .filter(Boolean)
+          .map((p) => fs.remove(p).catch(() => {}))
+      );
+      return res.status(500).send("Error firmando PDF");
+    }
+  }
+);
+
 
 
 
