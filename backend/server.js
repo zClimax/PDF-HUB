@@ -67,15 +67,15 @@ function cleanupAfterResponse(res, absolutePaths) {
   res.on("error", cleanup);
 }
 
-app.get("/", (req, res) => {
+app.get("/api", (req, res) => {
   res.send("Backend funcionando 🔥");
 });
 
-app.post("/upload", upload.single("file"), (req, res) => {
+app.post("/api/upload", upload.single("file"), (req, res) => {
   res.json({ message: "Archivo recibido", file: req.file.filename });
 });
 
-app.post("/merge", upload.array("files"), async (req, res) => {
+app.post("/api/merge", upload.array("files"), async (req, res) => {
   const inputNames = (req.files || []).map((f) => f.filename);
 
   if (inputNames.length < 2) {
@@ -113,7 +113,7 @@ app.post("/merge", upload.array("files"), async (req, res) => {
   }
 });
 
-app.post("/delete-pages", upload.single("file"), async (req, res) => {
+app.post("/api/delete-pages", upload.single("file"), async (req, res) => {
   const inputName = req.file?.filename;
   const inputPath = inputName ? path.join(TEMP_DIR, inputName) : null;
 
@@ -156,7 +156,7 @@ app.post("/delete-pages", upload.single("file"), async (req, res) => {
 });
 
 // METODO REORDENAR PAGINAS
-app.post("/reorder-pages", upload.single("file"), async (req, res) => {
+app.post("/api/reorder-pages", upload.single("file"), async (req, res) => {
   try {
     const order = JSON.parse(req.body.order); // 0-based, ej [2,0,1,...]
 
@@ -174,7 +174,7 @@ app.post("/reorder-pages", upload.single("file"), async (req, res) => {
 
 
 // METODO EXTRAER PAGINAS
-app.post("/extract-pages", upload.single("file"), async (req, res) => {
+app.post("/api/extract-pages", upload.single("file"), async (req, res) => {
   try {
     const pages = JSON.parse(req.body.pages); // 0-based
 
@@ -192,7 +192,7 @@ app.post("/extract-pages", upload.single("file"), async (req, res) => {
 
 // METODO FIRMA VISIBLE (SELLO) - posicion libre por click
 app.post(
-  "/stamp-signature",
+  "/api/stamp-signature",
   upload.fields([
     { name: "pdf", maxCount: 1 },
     { name: "signature", maxCount: 1 },
@@ -243,7 +243,7 @@ app.post(
 
 
 
-app.post("/pdf-info", upload.single("file"), async (req, res) => {
+app.post("/api/pdf-info", upload.single("file"), async (req, res) => {
   const filePath = path.join(TEMP_DIR, req.file.filename);
 
   try {
