@@ -11,6 +11,7 @@ const FileType = require("file-type");
 
 const { mergePDFs, deletePages, reorderPages, extractPages, stampSignature } =
   require("./services/pdfService");
+const { compressPDF } = require("./services/compressService");
 
 const app = express();
 
@@ -343,6 +344,68 @@ app.get("/check-gs", (req, res) => {
     }
   }
 });
+
+// ─────────────────────────────────────────────
+// ENDPOINT: POST /compress
+// Comprime un PDF usando Ghostscript según el
+// nivel elegido: "alta", "media" o "baja"
+// ─────────────────────────────────────────────
+app.post("/compress", uploadLimiter, upload.single("file"), async (req, res) => {
+  const inputName = req.file?.filename;
+  const inputPath = inputName ? path.join(TEMP_DIR, inputName) : null;
+
+  // Validar que el archivo recibido sea realmente un PDF
+  const valid = await validateFileMime(inputPath, ["application/pdf"]);
+  if (!valid) {
+    await fs.remove(inputPath).catch(() => {});
+    return res.status(400).send("El archivo no es un PDF válido.");
+  }
+
+  // Validar nivel de compresión; si no viene o es inválido, usar "media"
+  const nivel = ["baja", "media", "alta"].includes(req.body.nivel)
+    ? req.body.nivel
+    : "media";
+
+  let outputName = null;
+  try {
+    // Ejecutar compresión con Ghostscript
+    const result = await compressPDF(inputName, nivel);
+    outputName = result.outputName;
+    const outputPath = path.join(TEMP_DIR, outputName);
+
+    // Exponer headers personalizados al frontend (necesario para CORS)
+    res.setHeader("Access-Control-Expose-Headers",
+      "X-Reduccion, X-Input-Size, X-Output-Size"
+    );
+
+    // Headers con métricas de compresión para mostrar en la UI
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Reduccion", String(result.reduccion));
+    res.setHeader("X-Input-Size", String(result.inputSize));
+    res.setHeader("X-Output-Size", String(result.outputSize));
+
+    // Limpiar archivos temporales después de enviar la respuesta
+    cleanupAfterResponse(res, [inputPath, outputPath]);
+
+    // Enviar el PDF comprimido como descarga
+    return res.download(outputPath, "comprimido.pdf", (err) => {
+      if (err) console.error("Error al enviar /compress:", err);
+    });
+
+  } catch (error) {
+    console.error("Error en /compress:", error);
+
+    // Limpiar archivos temporales en caso de error
+    const paths = [
+      inputPath,
+      outputName ? path.join(TEMP_DIR, outputName) : null,
+    ].filter(Boolean);
+    await Promise.all(paths.map((p) => fs.remove(p).catch(() => {})));
+
+    return res.status(500).send("Error al comprimir PDF");
+  }
+});
+
 
 
 // ─── MANEJO DE ERRORES ─────────────────────────────────────────────────────

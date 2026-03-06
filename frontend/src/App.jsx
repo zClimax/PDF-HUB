@@ -9,6 +9,7 @@ import DeletePagesView from "./views/DeletePagesView";
 import ReorderPagesView from "./views/ReorderPagesView";
 import ExtractPagesView from "./views/ExtractPagesView";
 import StampSignatureView from "./views/StampSignatureView";
+import CompressView from "./views/CompressView";
 
 
 const TOOLS = [
@@ -54,6 +55,12 @@ const TOOLS = [
   description: "Coloca un sello/firma en cualquier posición",
   enabled: true,
 },
+{
+  key: "compress",
+  title: "Comprimir PDF",
+  description: "Reduce el tamaño de un archivo PDF",
+  enabled: true,
+},
 
 ];
 
@@ -72,7 +79,9 @@ export default function App() {
       return <ExtractPagesView onBack={goHome} />;
     case "stamp":
       return <StampSignatureView onBack={goHome} />;
-    default:
+    case "compress":
+      return <CompressView onBack={goHome} />;
+      default:
       break;
       
   }
