@@ -7,7 +7,7 @@ const fs = require("fs-extra");
 const { PDFDocument } = require("pdf-lib");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-const { fileTypeFromBuffer } = require("file-type");
+const FileType = require("file-type");
 
 const { mergePDFs, deletePages, reorderPages, extractPages, stampSignature } =
   require("./services/pdfService");
@@ -62,10 +62,11 @@ fs.ensureDirSync(TEMP_DIR);
 // ─── SEGURIDAD: Validación MIME real (no solo extensión) ───────────────────
 async function validateFileMime(filePath, allowedTypes) {
   const buffer = await fs.readFile(filePath);
-  const type = await fileTypeFromBuffer(buffer);
+  const type = await FileType.fromBuffer(buffer);
   if (!type) return false;
   return allowedTypes.includes(type.mime);
 }
+
 
 function isPdfFile(file) {
   const ext = path.extname(file.originalname || "").toLowerCase();
