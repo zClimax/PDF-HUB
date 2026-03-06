@@ -326,6 +326,24 @@ app.post("/pdf-info", uploadLimiter, upload.single("file"), async (req, res) => 
   }
 });
 
+
+// Diagnóstico temporal - quitar después
+app.get("/check-gs", (req, res) => {
+  const { execSync } = require("child_process");
+  try {
+    const v = execSync("gs --version 2>&1").toString().trim();
+    res.json({ available: true, version: v });
+  } catch {
+    try {
+      const v2 = execSync("ghostscript --version 2>&1").toString().trim();
+      res.json({ available: true, version: v2 });
+    } catch {
+      res.json({ available: false });
+    }
+  }
+});
+
+
 // ─── MANEJO DE ERRORES ─────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
   console.error(err);
