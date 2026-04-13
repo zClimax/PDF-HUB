@@ -10,7 +10,7 @@ import ReorderPagesView from "./views/ReorderPagesView";
 import ExtractPagesView from "./views/ExtractPagesView";
 import StampSignatureView from "./views/StampSignatureView";
 import CompressView from "./views/CompressView";
-
+import PdfToImageView from "./views/PdfToImageView";
 
 const TOOLS = [
   {
@@ -61,7 +61,12 @@ const TOOLS = [
   description: "Reduce el tamaño de un archivo PDF",
   enabled: true,
 },
-
+{
+  key: "pdf2image",
+  title: "PDF a Imagen",
+  description: "Convierte paginas de un PDF a JPG, PNG o JPEG",
+  enabled: true,
+},
 ];
 
 export default function App() {
@@ -81,6 +86,8 @@ export default function App() {
       return <StampSignatureView onBack={goHome} />;
     case "compress":
       return <CompressView onBack={goHome} />;
+    case "pdf2image":
+      return <PdfToImageView onBack={goHome} />;
       default:
       break;
       

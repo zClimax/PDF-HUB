@@ -8,6 +8,9 @@ const { PDFDocument } = require("pdf-lib");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const FileType = require("file-type");
+const archiver = require("archiver");
+const { pdfToImages } = require("./services/pdfToImageService");
+
 
 const { mergePDFs, deletePages, reorderPages, extractPages, stampSignature } =
   require("./services/pdfService");
@@ -405,6 +408,87 @@ app.post("/compress", uploadLimiter, upload.single("file"), async (req, res) => 
     return res.status(500).send("Error al comprimir PDF");
   }
 });
+
+// ─────────────────────────────────────────────
+// ENDPOINT: POST /pdf-to-image
+// Convierte cada página de un PDF en imágenes
+// y las entrega en un archivo ZIP
+// ─────────────────────────────────────────────
+app.post("/pdf-to-image", uploadLimiter, upload.single("file"), async (req, res) => {
+  const inputName = req.file?.filename;
+  const inputPath = inputName ? path.join(TEMP_DIR, inputName) : null;
+
+  // Validar que sea PDF
+  const valid = await validateFileMime(inputPath, ["application/pdf"]);
+  if (!valid) {
+    await fs.remove(inputPath).catch(() => {});
+    return res.status(400).send("El archivo no es un PDF válido.");
+  }
+
+  // Parámetros
+  const formato = ["jpg", "jpeg", "png"].includes(req.body.formato)
+    ? req.body.formato
+    : "jpg";
+  const dpi = [72, 150, 300].includes(Number(req.body.dpi))
+    ? Number(req.body.dpi)
+    : 150;
+
+  let outputFiles = [];
+  let sessionId = null;
+
+  try {
+    const result = await pdfToImages(inputName, formato, dpi);
+    outputFiles = result.outputFiles;
+    sessionId = result.sessionId;
+
+    // Si solo es 1 página, enviar imagen directa sin ZIP
+    if (outputFiles.length === 1) {
+      const imgPath = path.join(TEMP_DIR, outputFiles[0]);
+      res.setHeader("Content-Type", formato === "png" ? "image/png" : "image/jpeg");
+      res.setHeader("Content-Disposition", `attachment; filename="pagina_1.${formato}"`);
+      res.setHeader("Access-Control-Expose-Headers", "X-Page-Count");
+      res.setHeader("X-Page-Count", "1");
+
+      cleanupAfterResponse(res, [inputPath, imgPath]);
+      return res.sendFile(imgPath);
+    }
+
+    // Múltiples páginas → ZIP
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="paginas.zip"`);
+    res.setHeader("Access-Control-Expose-Headers", "X-Page-Count");
+    res.setHeader("X-Page-Count", String(outputFiles.length));
+
+    const archive = archiver("zip", { zlib: { level: 6 } });
+    archive.pipe(res);
+
+    for (const fileName of outputFiles) {
+      const filePath = path.join(TEMP_DIR, fileName);
+      // Nombre limpio para dentro del ZIP: pagina_0001.jpg
+      const pageNum = fileName.split("_").pop();
+      archive.file(filePath, { name: `pagina_${pageNum}` });
+    }
+
+    await archive.finalize();
+
+    // Limpiar temporales después de enviar
+    res.on("finish", async () => {
+      await fs.remove(inputPath).catch(() => {});
+      for (const f of outputFiles) {
+        await fs.remove(path.join(TEMP_DIR, f)).catch(() => {});
+      }
+    });
+
+  } catch (error) {
+    console.error("Error en /pdf-to-image:", error);
+    await fs.remove(inputPath).catch(() => {});
+    for (const f of outputFiles) {
+      await fs.remove(path.join(TEMP_DIR, f)).catch(() => {});
+    }
+    return res.status(500).send("Error al convertir el PDF a imágenes.");
+  }
+});
+
 
 
 
