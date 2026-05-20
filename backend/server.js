@@ -11,6 +11,7 @@ const FileType = require("file-type");
 const archiver = require("archiver");
 const { pdfToImages } = require("./services/pdfToImageService");
 const { imagesToPdf } = require("./services/imageToPdfService");
+const { pdfToExcel } = require("./services/pdfToExcelService");
 
 const { mergePDFs, deletePages, reorderPages, extractPages, stampSignature } =
   require("./services/pdfService");
@@ -496,6 +497,30 @@ app.post("/image-to-pdf", requireAuth, uploadLimiter, upload.array("images", 20)
   }
 });
 
+app.post("/pdf-to-excel", requireAuth, uploadLimiter, upload.single("file"), async (req, res) => {
+  const inputName = req.file?.filename;
+  const inputPath = inputName ? path.join(TEMP_DIR, inputName) : null;
+
+  const valid = await validateFileMime(inputPath, ["application/pdf"]);
+  if (!valid) {
+    await fs.remove(inputPath).catch(() => {});
+    return res.status(400).send("El archivo no es un PDF válido.");
+  }
+
+  try {
+    const { outputName, pages } = await pdfToExcel(inputName);
+    const outputPath = path.join(TEMP_DIR, outputName);
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Access-Control-Expose-Headers", "X-Pages");
+    res.setHeader("X-Pages", String(pages));
+    cleanupAfterResponse(res, [inputPath, outputPath]);
+    return res.download(outputPath, "resultado.xlsx");
+  } catch (err) {
+    console.error("Error en /pdf-to-excel:", err);
+    await fs.remove(inputPath).catch(() => {});
+    return res.status(500).send(err.message || "Error al convertir el PDF.");
+  }
+});
 
 // ─── MANEJO DE ERRORES ─────────────────────────────────────────────────────
 app.use((err, req, res, next) => {

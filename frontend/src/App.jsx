@@ -21,18 +21,20 @@ import StampSignatureView from "./views/StampSignatureView";
 import CompressView       from "./views/CompressView";
 import PdfToImageView     from "./views/PdfToImageView";
 import ImageToPdfView     from "./views/ImageToPdfView";
+import PdfToExcelView     from "./views/PdfToExcelView";
 
 const TOOLS = [
-  { key: "merge",    title: "Unir PDFs",       description: "Combina varios archivos PDF en uno solo",         enabled: true  },
-  { key: "delete",   title: "Eliminar páginas", description: "Quita páginas específicas de un PDF",            enabled: true  },
-  { key: "reorder",  title: "Reordenar páginas",description: "Cambia el orden de páginas de un PDF",           enabled: true  },
-  { key: "extract",  title: "Extraer páginas",  description: "Crea un PDF nuevo con páginas seleccionadas",    enabled: true  },
-  { key: "stamp",    title: "Firma visible",    description: "Coloca un sello/firma en cualquier posición",    enabled: true  },
-  { key: "compress", title: "Comprimir PDF",    description: "Reduce el tamaño de un archivo PDF",             enabled: true  },
-  { key: "pdf2image",title: "PDF a Imagen",     description: "Convierte páginas de un PDF a JPG, PNG o JPEG",  enabled: true  },
-  { key: "img2pdf",  title: "Imagen a PDF",     description: "Convierte imágenes PNG/JPG en un archivo PDF",   enabled: true  },
-  { key: "pdf2word", title: "PDF a Word",       description: "Próximamente",                                    enabled: false },
-  { key: "word2pdf", title: "Word a PDF",       description: "Próximamente",                                    enabled: false },
+  { key: "merge",     title: "Unir PDFs",       description: "Combina varios archivos PDF en uno solo",          enabled: true  },
+  { key: "delete",    title: "Eliminar páginas", description: "Quita páginas específicas de un PDF",             enabled: true  },
+  { key: "reorder",   title: "Reordenar páginas",description: "Cambia el orden de páginas de un PDF",            enabled: true  },
+  { key: "extract",   title: "Extraer páginas",  description: "Crea un PDF nuevo con páginas seleccionadas",     enabled: true  },
+  { key: "stamp",     title: "Firma visible",    description: "Coloca un sello/firma en cualquier posición",     enabled: true  },
+  { key: "compress",  title: "Comprimir PDF",    description: "Reduce el tamaño de un archivo PDF",              enabled: true  },
+  { key: "pdf2image", title: "PDF a Imagen",     description: "Convierte páginas de un PDF a JPG, PNG o JPEG",   enabled: true  },
+  { key: "img2pdf",   title: "Imagen a PDF",     description: "Convierte imágenes PNG/JPG en un archivo PDF",    enabled: true  },
+  { key: "pdf2excel", title: "PDF a Excel",      description: "Extrae tablas de un PDF exportado desde Excel",   enabled: true  },
+  { key: "pdf2word",  title: "PDF a Word",       description: "Próximamente",                                    enabled: false },
+  { key: "word2pdf",  title: "Word a PDF",       description: "Próximamente",                                    enabled: false },
 ];
 
 function LoadingScreen() {
@@ -69,6 +71,7 @@ function AppContent() {
     case "compress":  return <CompressView onBack={goHome} />;
     case "pdf2image": return <PdfToImageView onBack={goHome} />;
     case "img2pdf":   return <ImageToPdfView onBack={goHome} />;
+    case "pdf2excel": return <PdfToExcelView onBack={goHome} />;
     default: break;
   }
 
@@ -78,8 +81,6 @@ function AppContent() {
       subtitle="Herramientas para gestionar y editar PDFs"
       actions={
         <div className="flex items-center gap-2">
-
-          {/* Botón Admin — solo para administradores */}
           {user.role === "admin" && (
             <button
               onClick={() => setView("admin")}
@@ -92,8 +93,6 @@ function AppContent() {
               Admin
             </button>
           )}
-
-          {/* Email — clic abre perfil */}
           <button
             onClick={() => setView("profile")}
             className="hidden md:block text-xs text-slate-500 hover:text-indigo-600 truncate max-w-[180px] transition"
@@ -101,8 +100,6 @@ function AppContent() {
           >
             {user.email}
           </button>
-
-          {/* Botón perfil (móvil) */}
           <button
             onClick={() => setView("profile")}
             className="md:hidden p-1.5 rounded-full border border-slate-200 bg-white text-slate-500 hover:text-indigo-600 hover:border-indigo-200 transition"
@@ -112,8 +109,6 @@ function AppContent() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
             </svg>
           </button>
-
-          {/* Botón cerrar sesión */}
           <button
             onClick={logout}
             className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition"
