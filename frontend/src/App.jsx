@@ -77,7 +77,7 @@ function AppContent() {
 
   return (
     <AppShell
-      title="PDF HUB"
+      title="Lyra"
       subtitle="Herramientas para gestionar y editar PDFs"
       actions={
         <div className="flex items-center gap-2">
