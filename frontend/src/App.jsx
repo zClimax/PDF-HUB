@@ -1,7 +1,7 @@
 // frontend/src/App.jsx
 import { useState } from "react";
 import "./lib/pdfjs";
-import "./services/api"; // ← activa el interceptor de fetch (Bearer token automático)
+import "./services/api"; // interceptor Bearer token automático
 
 import { AuthProvider, useAuth } from "./context/AuthContext";
 
@@ -19,18 +19,20 @@ import ExtractPagesView   from "./views/ExtractPagesView";
 import StampSignatureView from "./views/StampSignatureView";
 import CompressView       from "./views/CompressView";
 import PdfToImageView     from "./views/PdfToImageView";
+import ImageToPdfView     from "./views/ImageToPdfView";
 
 // ─── CATÁLOGO DE HERRAMIENTAS ──────────────────────────────────────────────
 const TOOLS = [
-  { key: "merge",    title: "Unir PDFs",          description: "Combina varios archivos PDF en uno solo",        enabled: true  },
-  { key: "delete",   title: "Eliminar páginas",    description: "Quita páginas específicas de un PDF",           enabled: true  },
-  { key: "reorder",  title: "Reordenar páginas",   description: "Cambia el orden de páginas de un PDF",          enabled: true  },
-  { key: "extract",  title: "Extraer páginas",     description: "Crea un PDF nuevo con páginas seleccionadas",   enabled: true  },
-  { key: "pdf2word", title: "PDF a Word",           description: "Próximamente",                                  enabled: false },
-  { key: "word2pdf", title: "Word a PDF",           description: "Próximamente",                                  enabled: false },
-  { key: "stamp",    title: "Firma visible",        description: "Coloca un sello/firma en cualquier posición",  enabled: true  },
-  { key: "compress", title: "Comprimir PDF",        description: "Reduce el tamaño de un archivo PDF",           enabled: true  },
-  { key: "pdf2image",title: "PDF a Imagen",         description: "Convierte páginas de un PDF a JPG, PNG o JPEG",enabled: true  },
+  { key: "merge",    title: "Unir PDFs",          description: "Combina varios archivos PDF en uno solo",         enabled: true  },
+  { key: "delete",   title: "Eliminar páginas",    description: "Quita páginas específicas de un PDF",            enabled: true  },
+  { key: "reorder",  title: "Reordenar páginas",   description: "Cambia el orden de páginas de un PDF",           enabled: true  },
+  { key: "extract",  title: "Extraer páginas",     description: "Crea un PDF nuevo con páginas seleccionadas",    enabled: true  },
+  { key: "stamp",    title: "Firma visible",        description: "Coloca un sello/firma en cualquier posición",   enabled: true  },
+  { key: "compress", title: "Comprimir PDF",        description: "Reduce el tamaño de un archivo PDF",            enabled: true  },
+  { key: "pdf2image",title: "PDF a Imagen",         description: "Convierte páginas de un PDF a JPG, PNG o JPEG", enabled: true  },
+  { key: "img2pdf",  title: "Imagen a PDF",         description: "Convierte imágenes PNG/JPG en un archivo PDF",  enabled: true  },
+  { key: "pdf2word", title: "PDF a Word",           description: "Próximamente",                                   enabled: false },
+  { key: "word2pdf", title: "Word a PDF",           description: "Próximamente",                                   enabled: false },
 ];
 
 // ─── PANTALLA DE CARGA ─────────────────────────────────────────────────────
@@ -49,22 +51,15 @@ function AppContent() {
   const [view, setView] = useState("home");
   const goHome = () => setView("home");
 
-  // 1. Cargando token guardado
   if (loading) return <LoadingScreen />;
-
-  // 2. Sin sesión → login
   if (!user) return <LoginView />;
-
-  // 3. Primer login → cambio obligatorio de contraseña
   if (user.must_change_password) return <ChangePasswordView />;
 
-  // 4. Panel de administración (solo admins)
   if (view === "admin") {
     if (user.role !== "admin") { setView("home"); return null; }
     return <AdminView onBack={goHome} />;
   }
 
-  // 5. Vistas de herramientas
   switch (view) {
     case "merge":     return <MergeView onBack={goHome} />;
     case "delete":    return <DeletePagesView onBack={goHome} />;
@@ -73,17 +68,16 @@ function AppContent() {
     case "stamp":     return <StampSignatureView onBack={goHome} />;
     case "compress":  return <CompressView onBack={goHome} />;
     case "pdf2image": return <PdfToImageView onBack={goHome} />;
+    case "img2pdf":   return <ImageToPdfView onBack={goHome} />;
     default: break;
   }
 
-  // 6. Home — grid de herramientas
   return (
     <AppShell
       title="PDF HUB"
       subtitle="Herramientas para gestionar y editar PDFs"
       actions={
         <div className="flex items-center gap-2">
-          {/* Botón admin — solo visible para usuarios con rol admin */}
           {user.role === "admin" && (
             <button
               onClick={() => setView("admin")}
@@ -96,13 +90,9 @@ function AppContent() {
               Admin
             </button>
           )}
-
-          {/* Email del usuario */}
           <span className="hidden md:block text-xs text-slate-500 truncate max-w-[180px]">
             {user.email}
           </span>
-
-          {/* Botón cerrar sesión */}
           <button
             onClick={logout}
             className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition"
@@ -143,7 +133,6 @@ function AppContent() {
   );
 }
 
-// ─── ENTRY POINT ───────────────────────────────────────────────────────────
 export default function App() {
   return (
     <AuthProvider>

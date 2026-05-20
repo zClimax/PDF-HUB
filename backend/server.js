@@ -10,6 +10,7 @@ const rateLimit = require("express-rate-limit");
 const FileType = require("file-type");
 const archiver = require("archiver");
 const { pdfToImages } = require("./services/pdfToImageService");
+const { imagesToPdf } = require("./services/imageToPdfService");
 
 const { mergePDFs, deletePages, reorderPages, extractPages, stampSignature } =
   require("./services/pdfService");
@@ -461,6 +462,40 @@ app.post("/pdf-to-image", requireAuth, uploadLimiter, upload.single("file"), asy
     return res.status(500).send("Error al convertir el PDF a imágenes.");
   }
 });
+
+app.post("/image-to-pdf", requireAuth, uploadLimiter, upload.array("images", 20), async (req, res) => {
+  const files = req.files || [];
+
+  if (files.length === 0) {
+    return res.status(400).send("Sube al menos una imagen.");
+  }
+
+  const fileNames = files.map((f) => f.filename);
+  const filePaths = fileNames.map((n) => path.join(TEMP_DIR, n));
+
+  for (const filePath of filePaths) {
+    const valid = await validateFileMime(filePath, ["image/png", "image/jpeg"]);
+    if (!valid) {
+      await Promise.all(filePaths.map((p) => fs.remove(p).catch(() => {})));
+      return res.status(400).send("Solo se permiten imágenes PNG o JPG.");
+    }
+  }
+
+  let outputName = null;
+  try {
+    outputName = await imagesToPdf(fileNames);
+    const outputPath = path.join(TEMP_DIR, outputName);
+    cleanupAfterResponse(res, [...filePaths, outputPath]);
+    res.setHeader("Cache-Control", "no-store");
+    return res.download(outputPath, "imagenes.pdf");
+  } catch (err) {
+    console.error("Error en /image-to-pdf:", err);
+    const paths = [...filePaths, outputName ? path.join(TEMP_DIR, outputName) : null].filter(Boolean);
+    await Promise.all(paths.map((p) => fs.remove(p).catch(() => {})));
+    return res.status(500).send("Error al convertir imágenes a PDF.");
+  }
+});
+
 
 // ─── MANEJO DE ERRORES ─────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
