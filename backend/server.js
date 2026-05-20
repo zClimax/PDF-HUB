@@ -11,32 +11,35 @@ const FileType = require("file-type");
 const archiver = require("archiver");
 const { pdfToImages } = require("./services/pdfToImageService");
 
-
 const { mergePDFs, deletePages, reorderPages, extractPages, stampSignature } =
   require("./services/pdfService");
 const { compressPDF } = require("./services/compressService");
+
+// ─── AUTH ──────────────────────────────────────────────────────────────────
+const { initSchema } = require("./database/db");
+const authRoutes = require("./routes/auth");
+const { requireAuth, requireAdmin } = require("./middleware/auth");
 
 const app = express();
 
 // ─── SEGURIDAD: Headers HTTP ───────────────────────────────────────────────
 app.use(helmet({
-  contentSecurityPolicy: false, // desactivado para no romper el frontend React
+  contentSecurityPolicy: false,
 }));
 
 // ─── SEGURIDAD: Rate limiting ──────────────────────────────────────────────
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 60,                   // máximo 60 requests por IP
+  windowMs: 15 * 60 * 1000,
+  max: 60,
   message: "Demasiadas solicitudes. Intenta de nuevo en 15 minutos.",
   standardHeaders: true,
   legacyHeaders: false,
 });
 app.use(limiter);
 
-// Rate limit más estricto solo para uploads
 const uploadLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20, // máximo 20 uploads por IP cada 15 min
+  max: 20,
   message: "Límite de subidas alcanzado. Intenta en 15 minutos.",
 });
 
@@ -57,20 +60,18 @@ app.use(cors({
   credentials: true,
 }));
 
-
 app.use(express.json());
 
 const TEMP_DIR = path.join(__dirname, "temp");
 fs.ensureDirSync(TEMP_DIR);
 
-// ─── SEGURIDAD: Validación MIME real (no solo extensión) ───────────────────
+// ─── SEGURIDAD: Validación MIME real ───────────────────────────────────────
 async function validateFileMime(filePath, allowedTypes) {
   const buffer = await fs.readFile(filePath);
   const type = await FileType.fromBuffer(buffer);
   if (!type) return false;
   return allowedTypes.includes(type.mime);
 }
-
 
 function isPdfFile(file) {
   const ext = path.extname(file.originalname || "").toLowerCase();
@@ -91,7 +92,6 @@ function isImageFile(file) {
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, TEMP_DIR),
   filename: (req, file, cb) => {
-    // Sanitiza: solo guarda extensión segura, nombre con UUID
     const ext = path.extname(file.originalname).toLowerCase();
     const safeExt = [".pdf", ".png", ".jpg", ".jpeg"].includes(ext) ? ext : "";
     cb(null, uuidv4() + safeExt);
@@ -120,14 +120,22 @@ function cleanupAfterResponse(res, absolutePaths) {
   res.on("error", cleanup);
 }
 
-// ─── RUTAS ─────────────────────────────────────────────────────────────────
+// ─── RUTAS PÚBLICAS (sin autenticación) ────────────────────────────────────
+
+// Health check
 app.get("/", (req, res) => {
   res.send("Backend funcionando 🔥");
 });
 
-app.post("/upload", uploadLimiter, upload.single("file"), async (req, res) => {
+// Rutas de autenticación (login, logout, change-password, me)
+app.use("/auth", authRoutes);
+const adminRoutes = require("./routes/admin");
+app.use("/admin", requireAuth, requireAdmin, adminRoutes);
+
+// ─── RUTAS PROTEGIDAS (requieren token JWT válido) ──────────────────────────
+
+app.post("/upload", requireAuth, uploadLimiter, upload.single("file"), async (req, res) => {
   const filePath = path.join(TEMP_DIR, req.file.filename);
-  // Validación MIME real
   const valid = await validateFileMime(filePath, ["application/pdf", "image/png", "image/jpeg"]);
   if (!valid) {
     await fs.remove(filePath).catch(() => {});
@@ -136,7 +144,7 @@ app.post("/upload", uploadLimiter, upload.single("file"), async (req, res) => {
   res.json({ message: "Archivo recibido", file: req.file.filename });
 });
 
-app.post("/merge", uploadLimiter, upload.array("files"), async (req, res) => {
+app.post("/merge", requireAuth, uploadLimiter, upload.array("files"), async (req, res) => {
   const inputNames = (req.files || []).map((f) => f.filename);
 
   if (inputNames.length < 2) {
@@ -144,7 +152,6 @@ app.post("/merge", uploadLimiter, upload.array("files"), async (req, res) => {
     return res.status(400).send("Sube al menos 2 PDFs para unir");
   }
 
-  // Validación MIME real en todos los archivos
   for (const name of inputNames) {
     const valid = await validateFileMime(path.join(TEMP_DIR, name), ["application/pdf"]);
     if (!valid) {
@@ -174,11 +181,10 @@ app.post("/merge", uploadLimiter, upload.array("files"), async (req, res) => {
   }
 });
 
-app.post("/delete-pages", uploadLimiter, upload.single("file"), async (req, res) => {
+app.post("/delete-pages", requireAuth, uploadLimiter, upload.single("file"), async (req, res) => {
   const inputName = req.file?.filename;
   const inputPath = inputName ? path.join(TEMP_DIR, inputName) : null;
 
-  // Validación MIME real
   if (inputPath) {
     const valid = await validateFileMime(inputPath, ["application/pdf"]);
     if (!valid) {
@@ -217,7 +223,7 @@ app.post("/delete-pages", uploadLimiter, upload.single("file"), async (req, res)
   }
 });
 
-app.post("/reorder-pages", uploadLimiter, upload.single("file"), async (req, res) => {
+app.post("/reorder-pages", requireAuth, uploadLimiter, upload.single("file"), async (req, res) => {
   const inputPath = path.join(TEMP_DIR, req.file.filename);
   const valid = await validateFileMime(inputPath, ["application/pdf"]);
   if (!valid) {
@@ -237,7 +243,7 @@ app.post("/reorder-pages", uploadLimiter, upload.single("file"), async (req, res
   }
 });
 
-app.post("/extract-pages", uploadLimiter, upload.single("file"), async (req, res) => {
+app.post("/extract-pages", requireAuth, uploadLimiter, upload.single("file"), async (req, res) => {
   const inputPath = path.join(TEMP_DIR, req.file.filename);
   const valid = await validateFileMime(inputPath, ["application/pdf"]);
   if (!valid) {
@@ -258,7 +264,8 @@ app.post("/extract-pages", uploadLimiter, upload.single("file"), async (req, res
 });
 
 app.post(
-  "/api/stamp-signature",
+  "/stamp-signature",
+  requireAuth,
   uploadLimiter,
   upload.fields([
     { name: "pdf", maxCount: 1 },
@@ -274,7 +281,6 @@ app.post(
       return res.status(400).send("Debes enviar 'pdf' y 'signature'");
     }
 
-    // Validación MIME real
     const pdfValid = await validateFileMime(path.join(TEMP_DIR, pdfFile.filename), ["application/pdf"]);
     const sigValid = await validateFileMime(path.join(TEMP_DIR, sigFile.filename), ["image/png", "image/jpeg"]);
     if (!pdfValid || !sigValid) {
@@ -312,7 +318,7 @@ app.post(
   }
 );
 
-app.post("/pdf-info", uploadLimiter, upload.single("file"), async (req, res) => {
+app.post("/pdf-info", requireAuth, uploadLimiter, upload.single("file"), async (req, res) => {
   const filePath = path.join(TEMP_DIR, req.file.filename);
   const valid = await validateFileMime(filePath, ["application/pdf"]);
   if (!valid) {
@@ -331,9 +337,8 @@ app.post("/pdf-info", uploadLimiter, upload.single("file"), async (req, res) => 
   }
 });
 
-
 // Diagnóstico temporal - quitar después
-app.get("/check-gs", (req, res) => {
+app.get("/check-gs", requireAuth, (req, res) => {
   const { execSync } = require("child_process");
   try {
     const v = execSync("gs --version 2>&1").toString().trim();
@@ -348,84 +353,59 @@ app.get("/check-gs", (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────
-// ENDPOINT: POST /compress
-// Comprime un PDF usando Ghostscript según el
-// nivel elegido: "alta", "media" o "baja"
-// ─────────────────────────────────────────────
-app.post("/compress", uploadLimiter, upload.single("file"), async (req, res) => {
+app.post("/compress", requireAuth, uploadLimiter, upload.single("file"), async (req, res) => {
   const inputName = req.file?.filename;
   const inputPath = inputName ? path.join(TEMP_DIR, inputName) : null;
 
-  // Validar que el archivo recibido sea realmente un PDF
   const valid = await validateFileMime(inputPath, ["application/pdf"]);
   if (!valid) {
     await fs.remove(inputPath).catch(() => {});
     return res.status(400).send("El archivo no es un PDF válido.");
   }
 
-  // Validar nivel de compresión; si no viene o es inválido, usar "media"
   const nivel = ["baja", "media", "alta"].includes(req.body.nivel)
     ? req.body.nivel
     : "media";
 
   let outputName = null;
   try {
-    // Ejecutar compresión con Ghostscript
     const result = await compressPDF(inputName, nivel);
     outputName = result.outputName;
     const outputPath = path.join(TEMP_DIR, outputName);
 
-    // Exponer headers personalizados al frontend (necesario para CORS)
     res.setHeader("Access-Control-Expose-Headers",
       "X-Reduccion, X-Input-Size, X-Output-Size"
     );
-
-    // Headers con métricas de compresión para mostrar en la UI
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("X-Reduccion", String(result.reduccion));
     res.setHeader("X-Input-Size", String(result.inputSize));
     res.setHeader("X-Output-Size", String(result.outputSize));
 
-    // Limpiar archivos temporales después de enviar la respuesta
     cleanupAfterResponse(res, [inputPath, outputPath]);
-
-    // Enviar el PDF comprimido como descarga
     return res.download(outputPath, "comprimido.pdf", (err) => {
       if (err) console.error("Error al enviar /compress:", err);
     });
-
   } catch (error) {
     console.error("Error en /compress:", error);
-
-    // Limpiar archivos temporales en caso de error
     const paths = [
       inputPath,
       outputName ? path.join(TEMP_DIR, outputName) : null,
     ].filter(Boolean);
     await Promise.all(paths.map((p) => fs.remove(p).catch(() => {})));
-
     return res.status(500).send("Error al comprimir PDF");
   }
 });
 
-// ─────────────────────────────────────────────
-// ENDPOINT: POST /pdf-to-image
-// Convierte cada página de un PDF en imágenes
-// y las entrega en un archivo ZIP
-// ─────────────────────────────────────────────
-app.post("/pdf-to-image", uploadLimiter, upload.single("file"), async (req, res) => {
+app.post("/pdf-to-image", requireAuth, uploadLimiter, upload.single("file"), async (req, res) => {
   const inputName = req.file?.filename;
   const inputPath = inputName ? path.join(TEMP_DIR, inputName) : null;
 
-  // Validar que sea PDF
   const valid = await validateFileMime(inputPath, ["application/pdf"]);
   if (!valid) {
     await fs.remove(inputPath).catch(() => {});
     return res.status(400).send("El archivo no es un PDF válido.");
   }
 
-  // Parámetros
   const formato = ["jpg", "jpeg", "png"].includes(req.body.formato)
     ? req.body.formato
     : "jpg";
@@ -434,26 +414,21 @@ app.post("/pdf-to-image", uploadLimiter, upload.single("file"), async (req, res)
     : 150;
 
   let outputFiles = [];
-  let sessionId = null;
 
   try {
     const result = await pdfToImages(inputName, formato, dpi);
     outputFiles = result.outputFiles;
-    sessionId = result.sessionId;
 
-    // Si solo es 1 página, enviar imagen directa sin ZIP
     if (outputFiles.length === 1) {
       const imgPath = path.join(TEMP_DIR, outputFiles[0]);
       res.setHeader("Content-Type", formato === "png" ? "image/png" : "image/jpeg");
       res.setHeader("Content-Disposition", `attachment; filename="pagina_1.${formato}"`);
       res.setHeader("Access-Control-Expose-Headers", "X-Page-Count");
       res.setHeader("X-Page-Count", "1");
-
       cleanupAfterResponse(res, [inputPath, imgPath]);
       return res.sendFile(imgPath);
     }
 
-    // Múltiples páginas → ZIP
     res.setHeader("Content-Type", "application/zip");
     res.setHeader("Content-Disposition", `attachment; filename="paginas.zip"`);
     res.setHeader("Access-Control-Expose-Headers", "X-Page-Count");
@@ -464,14 +439,12 @@ app.post("/pdf-to-image", uploadLimiter, upload.single("file"), async (req, res)
 
     for (const fileName of outputFiles) {
       const filePath = path.join(TEMP_DIR, fileName);
-      // Nombre limpio para dentro del ZIP: pagina_0001.jpg
       const pageNum = fileName.split("_").pop();
       archive.file(filePath, { name: `pagina_${pageNum}` });
     }
 
     await archive.finalize();
 
-    // Limpiar temporales después de enviar
     res.on("finish", async () => {
       await fs.remove(inputPath).catch(() => {});
       for (const f of outputFiles) {
@@ -489,21 +462,27 @@ app.post("/pdf-to-image", uploadLimiter, upload.single("file"), async (req, res)
   }
 });
 
-
-
-
 // ─── MANEJO DE ERRORES ─────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
   console.error(err);
   return res.status(400).send(err.message || "Solicitud inválida");
 });
 
-// ─── FRONTEND ──────────────────────────────────────────────────────────────
+// ─── FRONTEND ESTÁTICO ─────────────────────────────────────────────────────
 app.use(express.static(path.join(__dirname, "public")));
 app.get("/{*path}", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-app.listen(5000, () => {
-  console.log("Servidor en http://localhost:5000");
-});
+// ─── INICIO DEL SERVIDOR ───────────────────────────────────────────────────
+// Primero inicializa la base de datos, luego arranca el servidor
+initSchema()
+  .then(() => {
+    app.listen(5000, () => {
+      console.log("Servidor en http://localhost:5000");
+    });
+  })
+  .catch((err) => {
+    console.error("Error al inicializar la base de datos:", err.message);
+    process.exit(1);
+  });

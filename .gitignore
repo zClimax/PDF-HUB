@@ -5,6 +5,7 @@ frontend/node_modules/
 # Builds
 frontend/dist/
 frontend/dist-ssr/
+backend/public/
 
 # Env files
 frontend/.env
