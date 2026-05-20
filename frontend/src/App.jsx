@@ -1,7 +1,7 @@
 // frontend/src/App.jsx
 import { useState } from "react";
 import "./lib/pdfjs";
-import "./services/api"; // interceptor Bearer token automático
+import "./services/api";
 
 import { AuthProvider, useAuth } from "./context/AuthContext";
 
@@ -11,6 +11,7 @@ import ToolCard from "./components/ToolCard";
 import LoginView          from "./views/LoginView";
 import ChangePasswordView from "./views/ChangePasswordView";
 import AdminView          from "./views/AdminView";
+import ProfileView        from "./views/ProfileView";
 
 import MergeView          from "./views/MergeView";
 import DeletePagesView    from "./views/DeletePagesView";
@@ -21,21 +22,19 @@ import CompressView       from "./views/CompressView";
 import PdfToImageView     from "./views/PdfToImageView";
 import ImageToPdfView     from "./views/ImageToPdfView";
 
-// ─── CATÁLOGO DE HERRAMIENTAS ──────────────────────────────────────────────
 const TOOLS = [
-  { key: "merge",    title: "Unir PDFs",          description: "Combina varios archivos PDF en uno solo",         enabled: true  },
-  { key: "delete",   title: "Eliminar páginas",    description: "Quita páginas específicas de un PDF",            enabled: true  },
-  { key: "reorder",  title: "Reordenar páginas",   description: "Cambia el orden de páginas de un PDF",           enabled: true  },
-  { key: "extract",  title: "Extraer páginas",     description: "Crea un PDF nuevo con páginas seleccionadas",    enabled: true  },
-  { key: "stamp",    title: "Firma visible",        description: "Coloca un sello/firma en cualquier posición",   enabled: true  },
-  { key: "compress", title: "Comprimir PDF",        description: "Reduce el tamaño de un archivo PDF",            enabled: true  },
-  { key: "pdf2image",title: "PDF a Imagen",         description: "Convierte páginas de un PDF a JPG, PNG o JPEG", enabled: true  },
-  { key: "img2pdf",  title: "Imagen a PDF",         description: "Convierte imágenes PNG/JPG en un archivo PDF",  enabled: true  },
-  { key: "pdf2word", title: "PDF a Word",           description: "Próximamente",                                   enabled: false },
-  { key: "word2pdf", title: "Word a PDF",           description: "Próximamente",                                   enabled: false },
+  { key: "merge",    title: "Unir PDFs",       description: "Combina varios archivos PDF en uno solo",         enabled: true  },
+  { key: "delete",   title: "Eliminar páginas", description: "Quita páginas específicas de un PDF",            enabled: true  },
+  { key: "reorder",  title: "Reordenar páginas",description: "Cambia el orden de páginas de un PDF",           enabled: true  },
+  { key: "extract",  title: "Extraer páginas",  description: "Crea un PDF nuevo con páginas seleccionadas",    enabled: true  },
+  { key: "stamp",    title: "Firma visible",    description: "Coloca un sello/firma en cualquier posición",    enabled: true  },
+  { key: "compress", title: "Comprimir PDF",    description: "Reduce el tamaño de un archivo PDF",             enabled: true  },
+  { key: "pdf2image",title: "PDF a Imagen",     description: "Convierte páginas de un PDF a JPG, PNG o JPEG",  enabled: true  },
+  { key: "img2pdf",  title: "Imagen a PDF",     description: "Convierte imágenes PNG/JPG en un archivo PDF",   enabled: true  },
+  { key: "pdf2word", title: "PDF a Word",       description: "Próximamente",                                    enabled: false },
+  { key: "word2pdf", title: "Word a PDF",       description: "Próximamente",                                    enabled: false },
 ];
 
-// ─── PANTALLA DE CARGA ─────────────────────────────────────────────────────
 function LoadingScreen() {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-3">
@@ -45,20 +44,21 @@ function LoadingScreen() {
   );
 }
 
-// ─── CONTENIDO PRINCIPAL ───────────────────────────────────────────────────
 function AppContent() {
   const { user, loading, logout } = useAuth();
   const [view, setView] = useState("home");
   const goHome = () => setView("home");
 
   if (loading) return <LoadingScreen />;
-  if (!user) return <LoginView />;
+  if (!user)   return <LoginView />;
   if (user.must_change_password) return <ChangePasswordView />;
 
   if (view === "admin") {
     if (user.role !== "admin") { setView("home"); return null; }
     return <AdminView onBack={goHome} />;
   }
+
+  if (view === "profile") return <ProfileView onBack={goHome} />;
 
   switch (view) {
     case "merge":     return <MergeView onBack={goHome} />;
@@ -78,6 +78,8 @@ function AppContent() {
       subtitle="Herramientas para gestionar y editar PDFs"
       actions={
         <div className="flex items-center gap-2">
+
+          {/* Botón Admin — solo para administradores */}
           {user.role === "admin" && (
             <button
               onClick={() => setView("admin")}
@@ -90,9 +92,28 @@ function AppContent() {
               Admin
             </button>
           )}
-          <span className="hidden md:block text-xs text-slate-500 truncate max-w-[180px]">
+
+          {/* Email — clic abre perfil */}
+          <button
+            onClick={() => setView("profile")}
+            className="hidden md:block text-xs text-slate-500 hover:text-indigo-600 truncate max-w-[180px] transition"
+            title="Ver mi perfil"
+          >
             {user.email}
-          </span>
+          </button>
+
+          {/* Botón perfil (móvil) */}
+          <button
+            onClick={() => setView("profile")}
+            className="md:hidden p-1.5 rounded-full border border-slate-200 bg-white text-slate-500 hover:text-indigo-600 hover:border-indigo-200 transition"
+            title="Mi perfil"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+            </svg>
+          </button>
+
+          {/* Botón cerrar sesión */}
           <button
             onClick={logout}
             className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition"
